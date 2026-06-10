@@ -57,7 +57,22 @@ io.on('connection', (socket) => {
         socket.join(roomCode);
         try {
             const room = await Room.findOne({ roomCode });
-            if (room) io.to(roomCode).emit('room_update', { players: room.players, teamAScore: room.teamAScore, teamBScore: room.teamBScore });
+            if (room) {
+                // --- THE REFRESH BUG FIX ---
+                // If they refreshed and got deleted, push them back into the array
+                const playerExists = room.players.some(p => p.username === username);
+                if (!playerExists && username) {
+                    room.players.push({ username, team: 'Unassigned', role: 'Waiting' });
+                    await room.save();
+                }
+                // ---------------------------
+
+                io.to(roomCode).emit('room_update', { 
+                    players: room.players, 
+                    teamAScore: room.teamAScore, 
+                    teamBScore: room.teamBScore 
+                });
+            }
         } catch (err) { console.error(err); }
     });
 
