@@ -53,27 +53,33 @@ const checkWinCondition = async (roomCode, room) => {
 io.on('connection', (socket) => {
     console.log(`User Connected: ${socket.id}`);
 
-    socket.on('join_room', async ({ roomCode, username }) => {
-        socket.join(roomCode);
+    socket.on('join_team', async ({ roomCode, username, team }) => {
         try {
             const room = await Room.findOne({ roomCode });
             if (room) {
-                // --- THE REFRESH BUG FIX ---
-                // If they refreshed and got deleted, push them back into the array
-                const playerExists = room.players.some(p => p.username === username);
-                if (!playerExists && username) {
-                    room.players.push({ username, team: 'Unassigned', role: 'Waiting' });
-                    await room.save();
+                const playerIndex = room.players.findIndex(p => p.username === username);
+                
+                if (playerIndex !== -1) {
+                    // Normal scenario: They exist, just update their team
+                    room.players[playerIndex].team = team;
+                } else {
+                    // Race condition fix: They got deleted by a refresh. 
+                    // Add them back to the database directly onto the team they picked!
+                    room.players.push({ username, team: team, role: 'Waiting' });
                 }
-                // ---------------------------
-
+                
+                room.markModified('players'); 
+                await room.save();
+                
                 io.to(roomCode).emit('room_update', { 
                     players: room.players, 
                     teamAScore: room.teamAScore, 
                     teamBScore: room.teamBScore 
                 });
             }
-        } catch (err) { console.error(err); }
+        } catch (err) { 
+            console.error("Error in join_team:", err); 
+        }
     });
 
     socket.on('join_team', async ({ roomCode, username, team }) => {
