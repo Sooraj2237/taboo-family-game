@@ -16,14 +16,13 @@ app.use(express.json());
 app.use('/api/rooms', roomRoutes);
 
 const io = new Server(server, {
-    cors: { origin: [process.env.FRONTEND_URL, "http://localhost:5173"], methods: ["GET", "POST"] }
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 const activeTimers = {}; 
 const activeCards = {}; 
-const WINNING_SCORE = 15; // The target score to win the game!
+const WINNING_SCORE = 15;
 
-// Helper function to check if a team won
 const checkWinCondition = async (roomCode, room) => {
     if (room.teamAScore >= WINNING_SCORE || room.teamBScore >= WINNING_SCORE) {
         const winner = room.teamAScore >= WINNING_SCORE ? 'A' : 'B';
@@ -35,7 +34,6 @@ const checkWinCondition = async (roomCode, room) => {
 
         io.to(roomCode).emit('game_over', { winner });
 
-        // Reset the room for the next game
         room.teamAScore = 0;
         room.teamBScore = 0;
         room.activeTeam = 'A';
@@ -53,27 +51,51 @@ const checkWinCondition = async (roomCode, room) => {
 io.on('connection', (socket) => {
     console.log(`User Connected: ${socket.id}`);
 
+    // --- INDESTRUCTIBLE JOIN ROOM ---
     socket.on('join_room', async ({ roomCode, username }) => {
         socket.join(roomCode);
         try {
-            const room = await Room.findOne({ roomCode });
-            if (room) io.to(roomCode).emit('room_update', { players: room.players, teamAScore: room.teamAScore, teamBScore: room.teamBScore });
+            let room = await Room.findOne({ roomCode });
+            if (room) {
+                const exists = room.players.some(p => p.username === username);
+                if (!exists && username) {
+                    // Force the player back into the database if missing
+                    await Room.updateOne(
+                        { roomCode }, 
+                        { $push: { players: { username, team: 'Unassigned', role: 'Waiting' } } }
+                    );
+                    room = await Room.findOne({ roomCode }); // Re-fetch updated room
+                }
+                io.to(roomCode).emit('room_update', { players: room.players, teamAScore: room.teamAScore, teamBScore: room.teamBScore });
+            }
         } catch (err) { console.error(err); }
     });
 
+    // --- INDESTRUCTIBLE JOIN TEAM ---
     socket.on('join_team', async ({ roomCode, username, team }) => {
         try {
-            const room = await Room.findOne({ roomCode });
-            if (room) {
-                const playerIndex = room.players.findIndex(p => p.username === username);
-                if (playerIndex !== -1) {
-                    room.players[playerIndex].team = team;
-                    room.markModified('players'); 
-                    await room.save();
-                    io.to(roomCode).emit('room_update', { players: room.players, teamAScore: room.teamAScore, teamBScore: room.teamBScore });
-                }
+            // 1. Force MongoDB to directly update the exact player's team
+            let result = await Room.updateOne(
+                { roomCode: roomCode, "players.username": username },
+                { $set: { "players.$.team": team } }
+            );
+
+            // 2. If the player was wiped by a refresh, push them directly to the array
+            if (result.matchedCount === 0) {
+                await Room.updateOne(
+                    { roomCode: roomCode },
+                    { $push: { players: { username: username, team: team, role: 'Waiting' } } }
+                );
             }
-        } catch (err) { console.error(err); }
+
+            // 3. Fetch the fresh room and send it to all players
+            const updatedRoom = await Room.findOne({ roomCode });
+            if (updatedRoom) {
+                io.to(roomCode).emit('room_update', { 
+                    players: updatedRoom.players, teamAScore: updatedRoom.teamAScore, teamBScore: updatedRoom.teamBScore 
+                });
+            }
+        } catch (err) { console.error("Error in join_team:", err); }
     });
 
     socket.on('start_game', async ({ roomCode }) => {
@@ -97,7 +119,7 @@ io.on('connection', (socket) => {
                 });
             }
 
-            room.activeTeam = opposingTeam; // Swap turns for next round
+            room.activeTeam = opposingTeam;
             room.markModified('players');
             await room.save();
 
@@ -124,7 +146,6 @@ io.on('connection', (socket) => {
         } catch (err) { console.error(err); }
     });
 
-    // --- SCORING & CHAT ---
     socket.on('chat_message', async ({ roomCode, username, role, message }) => {
         const currentWord = activeCards[roomCode];
         if (currentWord && message.toLowerCase().trim() === currentWord && role === 'Guesser') {
@@ -139,7 +160,7 @@ io.on('connection', (socket) => {
                     io.to(roomCode).emit('room_update', { players: room.players, teamAScore: room.teamAScore, teamBScore: room.teamBScore });
 
                     const isWin = await checkWinCondition(roomCode, room);
-                    if (isWin) return; // Stop if game is over
+                    if (isWin) return;
 
                     const randomCardData = await Card.aggregate([{ $sample: { size: 1 } }]);
                     if (randomCardData.length > 0) {
@@ -207,31 +228,25 @@ io.on('connection', (socket) => {
         } catch (err) { console.error(err); }
     });
 
-    // --- MANUAL ROOM RESET ---
     socket.on('reset_room', async ({ roomCode, username }) => {
         try {
             const room = await Room.findOne({ roomCode });
             if (room) {
-                // 1. Kill the active timer if there is one
                 if (activeTimers[roomCode]) {
                     clearInterval(activeTimers[roomCode]);
                     delete activeTimers[roomCode];
                 }
                 
-                // 2. Wipe scores and roles (but keep the teams intact)
                 room.teamAScore = 0;
                 room.teamBScore = 0;
                 room.activeTeam = 'A';
-                room.players.forEach(p => {
-                    p.role = 'Waiting';
-                });
+                room.players.forEach(p => { p.role = 'Waiting'; });
                 
                 room.markModified('players');
                 await room.save();
 
-                // 3. Broadcast the wipe to all phones
-                io.to(roomCode).emit('turn_ended'); // Hides the card
-                io.to(roomCode).emit('game_over', { winner: null }); // Hides the victory screen
+                io.to(roomCode).emit('turn_ended'); 
+                io.to(roomCode).emit('game_over', { winner: null }); 
                 io.to(roomCode).emit('room_update', { 
                     players: room.players, teamAScore: 0, teamBScore: 0 
                 });
@@ -242,36 +257,28 @@ io.on('connection', (socket) => {
         } catch (err) { console.error("Reset error:", err); }
     });
 
+    // --- INDESTRUCTIBLE LEAVE ROOM ---
     socket.on('leave_room', async ({ roomCode, username }) => {
         socket.leave(roomCode);
-        console.log(`${username} clicked Leave Room for ${roomCode}`);
+        console.log(`${username} left room ${roomCode}`);
 
         try {
-            const room = await Room.findOne({ roomCode });
-            if (room) {
-                // Filter the player out
-                room.players = room.players.filter(p => p.username !== username);
-                
-                room.markModified('players');
-                await room.save();
+            // Force MongoDB to delete the player instantly
+            const updatedRoom = await Room.findOneAndUpdate(
+                { roomCode },
+                { $pull: { players: { username: username } } },
+                { new: true }
+            );
 
-                // Update everyone else's screen
+            if (updatedRoom) {
                 io.to(roomCode).emit('room_update', { 
-                    players: room.players, 
-                    teamAScore: room.teamAScore, 
-                    teamBScore: room.teamBScore 
+                    players: updatedRoom.players, teamAScore: updatedRoom.teamAScore, teamBScore: updatedRoom.teamBScore 
                 });
-
-                // Drop a message in the chat
                 io.to(roomCode).emit('chat_message', { 
-                    sender: 'SYSTEM', 
-                    text: `👋 ${username} left the game.`, 
-                    isSystem: true 
+                    sender: 'SYSTEM', text: `👋 ${username} left the game.`, isSystem: true 
                 });
             }
-        } catch (err) { 
-            console.error("Error updating DB on leave:", err); 
-        }
+        } catch (err) { console.error("Error updating DB on leave:", err); }
     });
 });
 

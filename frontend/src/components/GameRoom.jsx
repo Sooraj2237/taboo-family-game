@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 
-const socket = io(import.meta.env.VITE_BACKEND_URL || `http://${window.location.hostname}:5173`);
+const socket = io(import.meta.env.VITE_BACKEND_URL || `http://${window.location.hostname}:5000`);
 
 export default function GameRoom() {
   const { roomCode } = useParams();
@@ -66,23 +66,23 @@ export default function GameRoom() {
       socket.off('game_over');
     };
   }, [roomCode, username, navigate]);
-
+  
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
-
+  
   const me = players.find(p => p.username === username) || { team: 'Unassigned', role: 'Waiting' };
-
+  
   const handleStartGame = () => {
     setChatMessages([]); 
     socket.emit('start_game', { roomCode });
   };
-
+  
   const handleJoinTeam = (teamName) => socket.emit('join_team', { roomCode, username, team: teamName });
   const handleManualCorrect = () => socket.emit('manual_correct', { roomCode, username });
   const handleSkip = () => socket.emit('skip_card', { roomCode, username });
   const handleBuzz = () => socket.emit('judge_buzz', { roomCode, username });
-
+  
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (currentGuess.trim()) {
@@ -90,7 +90,7 @@ export default function GameRoom() {
       setCurrentGuess('');
     }
   };
-
+  
   const handleLeaveRoom = () => {
     socket.emit('leave_room', { roomCode, username });
     navigate('/'); 
