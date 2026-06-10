@@ -64,7 +64,6 @@ export default function GameRoom() {
       socket.off('turn_ended');
       socket.off('chat_message');
       socket.off('game_over');
-      socket.emit('leave_room', { roomCode, username });
     };
   }, [roomCode, username, navigate]);
 
@@ -93,7 +92,7 @@ export default function GameRoom() {
   };
 
   const handleLeaveRoom = () => {
-    // Navigate back to the home screen. The useEffect cleanup handles the socket disconnect!
+    socket.emit('leave_room', { roomCode, username });
     navigate('/'); 
   };
 
