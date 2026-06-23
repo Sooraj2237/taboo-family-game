@@ -17,7 +17,7 @@ export default function GameRoom() {
   const [currentCard, setCurrentCard] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [winner, setWinner] = useState(null); // Tracks if the game is over
+  const [winner, setWinner] = useState(null); 
 
   const [chatMessages, setChatMessages] = useState([]);
   const [currentGuess, setCurrentGuess] = useState('');
@@ -38,6 +38,8 @@ export default function GameRoom() {
       setCurrentCard(card);
       setIsPlaying(true);
       setWinner(null); // Ensure victory screen is hidden if a new card is dealt
+      // There is a chance of overlap of the zero count and the new card
+      // In such a senario the card is dealt first and then the victory screen
     });
 
     socket.on('timer_update', (time) => setTimeLeft(time));
@@ -50,7 +52,6 @@ export default function GameRoom() {
 
     socket.on('chat_message', (msg) => setChatMessages((prev) => [...prev, msg]));
 
-    // --- NEW: Listen for the victory condition ---
     socket.on('game_over', (data) => {
       setIsPlaying(false);
       setTimeLeft(null);
@@ -106,7 +107,7 @@ export default function GameRoom() {
   const teamB = players.filter(p => p.team === 'B');
   const unassigned = players.filter(p => p.team === 'Unassigned');
 
-  // STATE 3: THE VICTORY SCREEN
+  // THE VICTORY SCREEN
   if (winner) {
     return (
       <div className="flex flex-col h-[90vh] items-center justify-center space-y-8 animate-in zoom-in duration-500">
@@ -151,7 +152,7 @@ export default function GameRoom() {
       </div>
 
       <div className="grow bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-col relative overflow-hidden shadow-xl">
-        {/* STATE 1: ACTIVE GAMEPLAY */}
+        {/* ACTIVE GAMEPLAY */}
         {isPlaying && currentCard ? (
           <div className="w-full h-full flex flex-col animate-in fade-in duration-300">
             <div className="flex-none flex items-center justify-center mb-4">
@@ -166,7 +167,6 @@ export default function GameRoom() {
                     <h3 className="text-2xl font-black tracking-wide uppercase">{currentCard.targetWord}</h3>
                   </div>
                   
-                  {/* FIXED SQUISHED CHAT: max-h-[25vh] overflow-y-auto */}
                   <div className="bg-slate-100 py-3 px-8 flex flex-col space-y-2 max-h-[25vh] overflow-y-auto shadow-inner">
                     {currentCard.tabooWords.map((word, index) => (
                       <div key={index} className="text-center">
@@ -220,9 +220,8 @@ export default function GameRoom() {
             </div>
           </div>
         ) : (
-          /* STATE 2: LOBBY & ROUND OVER */
+          /* LOBBY */
           <div className="h-full flex flex-col items-center justify-center space-y-6 w-full">
-            {/* Round Over Banner */}
             {timeLeft === 0 && (
               <div className="w-full max-w-2xl bg-blue-900/40 border border-blue-500 rounded-lg p-4 mb-4 text-center">
                 <h3 className="text-xl font-bold text-white uppercase tracking-widest">Turn Over!</h3>
@@ -264,7 +263,6 @@ export default function GameRoom() {
               </div>
             </div>
             <button onClick={handleStartGame} disabled={unassigned.length > 0 || teamA.length < 2 || teamB.length < 2} className="w-full max-w-sm bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(22,163,74,0.4)] disabled:shadow-none mt-4">START TURN</button>
-            {/* NEW: Room Controls Bar */}
             <div className="flex justify-between items-center mb-4 px-1">
               <button 
                 onClick={handleLeaveRoom}

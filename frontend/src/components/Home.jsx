@@ -70,7 +70,7 @@ export default function Home() {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="e.g., Amma, Appa"
+            placeholder="Enter a fun game name..."
             className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-slate-500"
           />
         </div>

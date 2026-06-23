@@ -51,7 +51,6 @@ const checkWinCondition = async (roomCode, room) => {
 io.on('connection', (socket) => {
     console.log(`User Connected: ${socket.id}`);
 
-    // --- INDESTRUCTIBLE JOIN ROOM ---
     socket.on('join_room', async ({ roomCode, username }) => {
         socket.join(roomCode);
         try {
@@ -71,16 +70,15 @@ io.on('connection', (socket) => {
         } catch (err) { console.error(err); }
     });
 
-    // --- INDESTRUCTIBLE JOIN TEAM ---
     socket.on('join_team', async ({ roomCode, username, team }) => {
         try {
-            // 1. Force MongoDB to directly update the exact player's team
+            // We need the db to update the data of the single user about which team he is in
             let result = await Room.updateOne(
                 { roomCode: roomCode, "players.username": username },
                 { $set: { "players.$.team": team } }
             );
 
-            // 2. If the player was wiped by a refresh, push them directly to the array
+            // If the player was wiped by a refresh, push them directly to the array
             if (result.matchedCount === 0) {
                 await Room.updateOne(
                     { roomCode: roomCode },
@@ -88,7 +86,9 @@ io.on('connection', (socket) => {
                 );
             }
 
-            // 3. Fetch the fresh room and send it to all players
+            // Fetch the fresh room and send it to all players
+            // In case of clash in room number we automatically assign a new one 
+            // And everyone get's the new code
             const updatedRoom = await Room.findOne({ roomCode });
             if (updatedRoom) {
                 io.to(roomCode).emit('room_update', { 
@@ -257,7 +257,6 @@ io.on('connection', (socket) => {
         } catch (err) { console.error("Reset error:", err); }
     });
 
-    // --- INDESTRUCTIBLE LEAVE ROOM ---
     socket.on('leave_room', async ({ roomCode, username }) => {
         socket.leave(roomCode);
         console.log(`${username} left room ${roomCode}`);
