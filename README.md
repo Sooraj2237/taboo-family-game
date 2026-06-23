@@ -1,6 +1,8 @@
 # Taboo Family Game 🗣️🚫
 
-A full-stack, real-time multiplayer web version of the classic party game "Taboo." Create a room, invite your friends, and try to get your team to guess the main word without using any of the forbidden words!
+**🌟 [Play the Live Game Here]([https://your-deployed-link-goes-here.com](https://taboo-family-game.vercel.app/)) 🌟**
+
+A full-stack, real-time multiplayer web version of the classic party game "**Taboo**" Create a room, invite your friends, and try to get your team to guess the main word without using any of the forbidden words!
 
 ## 🚀 Tech Stack
 
@@ -13,6 +15,10 @@ A full-stack, real-time multiplayer web version of the classic party game "Taboo
 * Node.js & Express.js
 * MongoDB (Mongoose)
 * Socket.io *(for real-time room syncing - if applicable)*
+
+**Deployed using**
+* *Frontend* - Vercel
+* *Backend* - Render
 
 ## 📂 Project Structure
 
@@ -27,7 +33,7 @@ To run this project locally, you will need [Node.js](https://nodejs.org/) and [M
 
 ### 1. Clone the repository
 ```bash
-git clone [https://github.com/your-username/taboo-family-game.git](https://github.com/your-username/taboo-family-game.git)
+git clone https://github.com/<your-username>/taboo-family-game.git
 cd taboo-family-game
 
 ```
